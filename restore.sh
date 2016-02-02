@@ -18,6 +18,7 @@ This script restores the current mongo database from a tar from an Amazon S3 buc
 
 OPTIONS:
    -h      Show this message
+   -a      Timestamp of backup file
    -t      Mongodb host
    -u      Mongodb user
    -p      Mongodb password
@@ -33,12 +34,15 @@ AWS_ACCESS_KEY=
 AWS_SECRET_KEY=
 S3_BUCKET=
 
-while getopts “ht:u:p:k:s:b:t:” OPTION
+while getopts “ht:u:p:k:s:b:t:a:” OPTION
 do
   case $OPTION in
     h)
       usage
       exit 1
+      ;;
+    a)
+      TIMESTAMP=$OPTARG
       ;;
     u)
       MONGODB_USER=$OPTARG
@@ -65,7 +69,10 @@ do
   esac
 done
 
-if [[ -z $AWS_ACCESS_KEY ]] || [[ -z $AWS_SECRET_KEY ]] || [[ -z $S3_BUCKET ]]
+if [[ -z $AWS_ACCESS_KEY ]] ||
+   [[ -z $AWS_SECRET_KEY ]] ||
+   [[ -z $S3_BUCKET ]] ||
+   [[ -z $TIMESTAMP ]]
 then
   usage
   exit 1
@@ -75,14 +82,18 @@ fi
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 echo $DIR
 # Store the current date in YYYY-mm-DD-HHMMSS
-DATE=$(date -u "+%F-%H%M%S")
-FILE_NAME="backup-$DATE"
+FILE_NAME="backup-$TIMESTAMP"
 ARCHIVE_NAME="$FILE_NAME.tar.gz"
+
+HEADER_DATE=$(date -u "+%a, %d %b %Y %T %z")
+CONTENT_TYPE="application/x-compressed-tar"
+STRING_TO_SIGN="GET\n\n$CONTENT_TYPE\n$HEADER_DATE\n/$S3_BUCKET/$ARCHIVE_NAME"
+SIGNATURE=$(echo -e -n $STRING_TO_SIGN | openssl dgst -sha1 -binary -hmac $AWS_SECRET_KEY | openssl enc -base64)
 
 curl -X GET \
      --header "Host: $S3_BUCKET.s3.amazonaws.com" \
      --header "Date: $HEADER_DATE" \
-     --header "content-type: $CONTENT_TYPE" \
-     --header "Content-MD5: $CONTENT_MD5" \
+     --header "Content-Type: $CONTENT_TYPE" \
      --header "Authorization: AWS $AWS_ACCESS_KEY:$SIGNATURE" \
-     https://$S3_BUCKET.s3.amazonaws.com/$ARCHIVE_NAME
+     https://$S3_BUCKET.s3.amazonaws.com/$ARCHIVE_NAME \
+     | tar -xz
