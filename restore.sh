@@ -98,6 +98,6 @@ curl -X GET \
      https://$S3_BUCKET.s3.amazonaws.com/$ARCHIVE_NAME \
      | tar -xz
 
-mongorestore --host "$MONGODB_HOST" --username "$MONGODB_USER" --password "$MONGODB_PASSWORD"  --drop --db bodireel $backup-$TIMESTAMP/bodireel
+mongorestore --host "$MONGODB_HOST" --username "$MONGODB_USER" --password "$MONGODB_PASSWORD"  --drop --db bodireel backup-$TIMESTAMP/bodireel
 
 rm -rf backup-$TIMESTAMP
