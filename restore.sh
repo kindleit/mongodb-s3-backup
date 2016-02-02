@@ -28,30 +28,27 @@ OPTIONS:
 EOF
 }
 
+ARCHIVE_TS=
 MONGODB_USER=
 MONGODB_PASSWORD=
 AWS_ACCESS_KEY=
 AWS_SECRET_KEY=
 S3_BUCKET=
 
-while getopts “ht:u:p:k:s:b:t:a:” OPTION
+while getopts “a:b:k:p:s:t:u:” OPTION
 do
   case $OPTION in
-    h)
-      usage
-      exit 1
-      ;;
     a)
-      TIMESTAMP=$OPTARG
+      ARCHIVE_TS=$OPTARG
       ;;
-    u)
-      MONGODB_USER=$OPTARG
-      ;;
-    p)
-      MONGODB_PASSWORD=$OPTARG
+    b)
+      S3_BUCKET=$OPTARG
       ;;
     k)
       AWS_ACCESS_KEY=$OPTARG
+      ;;
+    p)
+      MONGODB_PASSWORD=$OPTARG
       ;;
     s)
       AWS_SECRET_KEY=$OPTARG
@@ -59,37 +56,33 @@ do
     t)
       MONGODB_HOST=$OPTARG
       ;;
-    b)
-      S3_BUCKET=$OPTARG
+    u)
+      MONGODB_USER=$OPTARG
       ;;
     ?)
       usage
-      exit
+      exit 1
     ;;
   esac
 done
 
 if [[ -z $AWS_ACCESS_KEY ]] ||
    [[ -z $AWS_SECRET_KEY ]] ||
-   [[ -z $S3_BUCKET ]] ||
-   [[ -z $TIMESTAMP ]]
+   [[ -z $S3_BUCKET      ]] ||
+   [[ -z $ARCHIVE_TS     ]]
 then
   usage
   exit 1
 fi
 
-# Get the directory the script is being run from
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-echo $DIR
-# Store the current date in YYYY-mm-DD-HHMMSS
-FILE_NAME="backup-$TIMESTAMP"
-ARCHIVE_NAME="$FILE_NAME.tar.gz"
-
+# Prepare S3 params
+ARCHIVE_NAME="backup-$ARCHIVE_TS.tar.gz"
 HEADER_DATE=$(date -u "+%a, %d %b %Y %T %z")
 CONTENT_TYPE="application/x-compressed-tar"
 STRING_TO_SIGN="GET\n\n$CONTENT_TYPE\n$HEADER_DATE\n/$S3_BUCKET/$ARCHIVE_NAME"
 SIGNATURE=$(echo -e -n $STRING_TO_SIGN | openssl dgst -sha1 -binary -hmac $AWS_SECRET_KEY | openssl enc -base64)
 
+# Untar archive backup stored in S3
 curl -X GET \
      --header "Host: $S3_BUCKET.s3.amazonaws.com" \
      --header "Date: $HEADER_DATE" \
@@ -98,12 +91,13 @@ curl -X GET \
      https://$S3_BUCKET.s3.amazonaws.com/$ARCHIVE_NAME \
      | tar -xz
 
-if [[ -z $MONGODB_PASSWORD ]]; then
-    PASSLINE=""
-else
-    PASSLINE="--password $MONGODB_PASSWORD"
-fi
+# Prepare mongorestore arguments
+RESTORE_PARAMS="--drop --db bodireel --host $MONGODB_HOST"
+[[ -n $MONGODB_USER     ]] && RESTORE_PARAMS="$RESTORE_PARAMS --username $MONGODB_USER"
+[[ -n $MONGODB_PASSWORD ]] && RESTORE_PARAMS="$RESTORE_PARAMS --password $MONGODB_PASSWORD"
 
-mongorestore --host "$MONGODB_HOST" --username "$MONGODB_USER" $PASSLINE --drop --db bodireel backup-$TIMESTAMP/bodireel
+# Restore backup
+mongorestore $RESTORE_PARAMS backup-$ARCHIVE_TS/bodireel
 
-rm -rf backup-$TIMESTAMP
+# Delete backup folder
+rm -rf backup-$ARCHIVE_TS
