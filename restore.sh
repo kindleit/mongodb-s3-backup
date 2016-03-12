@@ -99,5 +99,10 @@ RESTORE_PARAMS="--drop --db bodireel --host $MONGODB_HOST"
 # Restore backup
 mongorestore $RESTORE_PARAMS backup-$ARCHIVE_TS/bodireel
 
+# IMPORTANT DO NOT MUCK USERS IN PRODUCTION
+if [[ -n "$ENV" && "$ENV" != "prod" ]]; then
+   mongo bodireel fix-users.js
+fi
+
 # Delete backup folder
 rm -rf backup-$ARCHIVE_TS
