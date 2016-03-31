@@ -1,4 +1,5 @@
 function fixEmail(email) {
+  if (email == null) return null;
   return email.replace('@', ".at.") + "@kitsd.com";
 }
 
