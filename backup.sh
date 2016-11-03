@@ -20,6 +20,7 @@ OPTIONS:
    -h      Show this message
    -t      Mongodb host
    -u      Mongodb user
+   -x      Authentication DB
    -p      Mongodb password
    -k      AWS Access Key
    -s      AWS Secret Key
@@ -42,6 +43,9 @@ do
       ;;
     u)
       MONGODB_USER=$OPTARG
+      ;;
+    x)
+      MONGODB_AUTHDB=$OPTARG
       ;;
     p)
       MONGODB_PASSWORD=$OPTARG
@@ -80,7 +84,7 @@ FILE_NAME="backup-$DATE"
 ARCHIVE_NAME="$FILE_NAME.tar.gz"
 
 # Dump the database
-mongodump --host "$MONGODB_HOST" --username "$MONGODB_USER" --password "$MONGODB_PASSWORD" --out $DIR/backup/$FILE_NAME
+mongodump --host "$MONGODB_HOST" --authenticationDatabase "$MONGODB_AUTHDB" --username "$MONGODB_USER" --password "$MONGODB_PASSWORD" --out $DIR/backup/$FILE_NAME
 
 # Tar Gzip the file
 tar -C $DIR/backup/ -zcvf $DIR/backup/$ARCHIVE_NAME $FILE_NAME/
